@@ -1,0 +1,197 @@
+#!/bin/bash
+
+############################ SSMTP CONFIGURATION #############################
+#      sudo apt install ssmtp -y                                             #
+#      sudo su #you need root privileges                                     #
+#      cd /etc/ssmtp                                                         #
+#      nano ssmtp.conf                                                       #
+#                                                                            #
+#      #configure the file like this:                                        #
+#                                                                            #
+#      #root=postmaster                                                      #
+#      SERVER=email                                                          #
+#      mailhub=smtp.gmail.com:587                                            #
+#      AuthUser=email                                                        #
+#      AuthPass=password                                                     #
+#      UseTLS=YES                                                            #
+#      UseSTARTTLS=YES                                                       #
+#      rewriteDomain=gmail.com                                               #
+#      hostname=#use the command hostname to get your hostname to write here #
+#      FromLineOverride=YES                                                  #
+##############################################################################
+
+# Other tools: wget
+
+# Functions:
+
+#
+# Returns the public IP address of the device:
+#
+# @return IP_address
+#
+getPublicIp() {
+
+    local var=""
+
+    while [ -z "$var" ]
+    do
+        var=$(wget https://ipinfo.io/ip -qO -)
+        if [[ -z "$var" ]]; then
+            sleep 5s
+        fi
+    done
+    echo "$var"
+}
+
+#
+# Check for internet connection.
+#
+# @return 1 if there is connection, 0 otherwise
+#
+isConnected() {
+
+    local result=
+    wget -q --spider http://www.google.com
+    if [ $? -eq 0 ]; then
+        # Online
+        let result=1
+    else
+        # Offline
+        let result=0
+    fi
+    echo "$result"
+}
+
+#
+# Send a message (public IP address) by email.
+# If ssmtp fails, wait 5 seconds and recalculate the public IP address.
+#
+# @param $1 publicIP
+# @param $2 email address
+# @return a zero length string or new IP address
+#
+sendEmail() {
+
+    local emailSent=0
+    local newIP=""
+    local IP="$1"
+
+    while [ "$emailSent" -eq 0 ]
+    do
+        echo "$IP" | ssmtp "$2" 2> /dev/null
+        if [[ $? -ne 1 ]]; then
+            let emailSent=1
+        else
+            sleep 5s
+            IP="$(getPublicIp)"
+            newIP="$IP"
+        fi
+    done
+    echo "$newIP"
+}
+
+
+#
+# Main:
+#
+
+previousConnectionFlag=0
+connectionFlag=0
+publicIP=""
+
+# here you set the e-mail address to which you want to send your public IP address
+email="email@domain.com"
+
+file="IP.txt"
+
+# infinite loop
+while true; do
+
+    # check if there is connection
+    let connectionFlag="$(isConnected)"
+
+    # if now there is connection and there was not before
+    if [[ "$connectionFlag" -eq 1 && "$previousConnectionFlag" -eq 0 ]]; then
+
+        echo "$(date): connection established"
+
+        publicIP="$(getPublicIp)"
+        returnValue=$(sendEmail "$publicIP" "$email")
+
+        if [[ -n "$returnValue" ]]; then
+            echo "$returnValue" > "$file"
+        else
+            echo "$publicIP" > "$file"
+        fi
+
+        let previousConnectionFlag=1
+        echo "email sent"
+
+    # if now there isn't connection and there was before
+    elif [[ "$connectionFlag" -eq 0 && "$previousConnectionFlag" -eq 1 ]]; then
+
+        let previousConnectionFlag=0
+        echo "$(date): lost connection"
+
+    # if now there is connection and there was before;
+    # this check is necessary after a long wait,
+    # because the public IP address may have changed without the script noticing
+    elif [[ "$connectionFlag" -eq 1 && "$previousConnectionFlag" -eq 1 ]]; then
+
+        # check the previous public ip address, saved on a file,
+        # and perform other checks on the file
+
+        if [[ -e "$file" ]]; then
+
+            previousPublicIP=$(cat "$file" 2> /dev/null)
+            publicIP="$(getPublicIp)"
+
+            if [[ -z "$previousPublicIP" ]]; then
+
+                echo "$(date):"
+                echo "The file containing the old IP address exists but is empty;"
+                echo "It will now be updated"
+
+                returnValue=$(sendEmail "$publicIP" "$email")
+
+                if [[ -n "$returnValue" ]]; then
+                    echo "$returnValue" > "$file"
+                else
+                    echo "$publicIP" > "$file"
+                fi
+                echo "email sent"
+
+            elif [[ "$previousPublicIP" != "$publicIP" ]]; then
+
+                echo "$(date):"
+                echo "The previous IP address and the one obtained now, do not match;"
+                echo "The file will now be updated"
+
+                returnValue=$(sendEmail "$publicIP" "$email")
+
+                if [[ -n "$returnValue" ]]; then
+                    echo "$returnValue" > "$file"
+                else
+                    echo "$publicIP" > "$file"
+                fi
+                echo "email sent"
+            fi
+        else
+            echo "$(date):"
+            echo "The file containing the previous IP address does not exist;"
+            echo "Now it will be created with the current public IP address"
+
+            publicIP="$(getPublicIp)"
+            returnValue=$(sendEmail "$publicIP" "$email")
+
+            if [[ -n "$returnValue" ]]; then
+                echo "$returnValue" > "$file"
+            else
+                echo "$publicIP" > "$file"
+            fi
+            echo "email sent"
+        fi
+    fi
+    echo "$(date): sleep for 15m"
+    sleep 15m
+done
