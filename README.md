@@ -23,6 +23,8 @@ Configure the file like this:
 ******************************************************************************
 Recommendations:
 
-*The use of a Gmail is recommended.
-*It will be mandatory to allow access to Google via "unsecured" apps, via account settings. 
-*Therefore it is recommended to create a new account specifically dedicated to this function.
+For the configuration of ssmtp program, the use of a Gmail is recommended.
+
+It will be mandatory to allow access to Google via "unsecured" apps, via account settings. 
+
+Therefore it is recommended to create a new account specifically dedicated to this function.
