@@ -20,3 +20,9 @@ Configure the file like this:
      rewriteDomain=gmail.com
      hostname=#use the command hostname to get your hostname to write here
      FromLineOverride=YES
+******************************************************************************
+Recommendations:
+
+*The use of a Gmail is recommended.
+*It will be mandatory to allow access to Google via "unsecured" apps, via account settings. 
+*Therefore it is recommended to create a new account specifically dedicated to this function.
